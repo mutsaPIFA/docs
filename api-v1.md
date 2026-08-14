@@ -43,6 +43,8 @@ API는 4개 도메인 그룹으로 나뉜다. 문서의 섹션 순서가 이 그
 | 3 | **옷장** | 9 나의옷장 · 2 옷장스캔 · 3 스캔결과 |
 | 4 | **스타일링** | 4-a 스타일DNA · 5 MCM추천 · 15 무드선택 · 16 코디조합추천 |
 
+> ⚑ 스타일 DNA는 **화면상 옷장에서 옷을 골라 시작**하지만 소속은 스타일링이다 — 옷장은 입력(재료)일 뿐이고, 하는 일(취향 분석·추천)과 출력(DNA·추천 결과)이 스타일링 도메인이기 때문. 그룹 기준은 "어느 화면에서 시작하나"가 아니라 "무슨 일을 하나"다.
+
 ## 계약 변경 절차
 
 이 문서는 프론트·AI가 동시에 의존하므로 **혼자 고치지 않는다.**
@@ -318,6 +320,8 @@ Content-Type: multipart/form-data
 ```
 
 > 사진 1장을 올리면 AI 태깅 + 누끼(배경 제거) 결과를 돌려준다. **아직 저장 안 함(임시).** '재스캔' = 이 API 재호출. 프론트가 이 응답을 들고 있다가 **3-2**로 등록한다.
+>
+> ⏱ **AI 처리로 10~40초 걸린다** — 로딩 상태 필수, HTTP 클라이언트 타임아웃은 60초 이상 권장.
 
 **Request** — form-data
 
@@ -576,7 +580,9 @@ GET /moods
 POST /outfits
 ```
 
-> 무드 기준 코디 후보 **최대 3개**. 각 코디는 **MCM 제품을 정확히 1개 포함**한다(원칙 — MCM 없는 코디는 이 서비스의 코디가 아님). `seedMcmProductId`를 주면 그 제품을 고정(제품상세 큐레이팅). **미저장(transient).** 프론트가 `closetItems`·`mcmProduct`의 `cutoutUrl`로 콜라주 렌더.
+> 무드 기준 코디 후보 **최대 3개**. 각 코디는 **MCM 제품을 정확히 1개 포함**한다(원칙 — MCM 없는 코디는 이 서비스의 코디가 아님). `seedMcmProductId`를 주면 그 제품을 고정(제품상세 큐레이팅). **미저장(transient).** 후보마다 **AI가 flat-lay 화보 1장을 생성해 `imageUrl`로 담아 준다.**
+>
+> ⏱ **화보 생성 때문에 응답이 20~40초 걸린다**(후보 3장 병렬 생성). "코디를 생성하고 있어요" 로딩 연출 필수, HTTP 타임아웃 90초 권장.
 >
 > **재료가 부족하면 3개 미만이 올 수 있다**(1~3개). 프론트는 받은 개수만큼 렌더하면 되고 별도 분기는 불필요. 단, 옷장에 MCM이 하나도 없으면 아래 `409`.
 
@@ -596,6 +602,7 @@ POST /outfits
   {
     "moodId": 1,
     "occasionLabel": "저녁 약속 / DINNER DATE",
+    "imageUrl": "https://cdn.mcmmuse.app/outfits/3f2a.jpg",
     "closetItems": [
       { "id": 1, "cutoutUrl": "https://...", "category": "상의" },
       { "id": 5, "cutoutUrl": "https://...", "category": "하의" }
@@ -606,7 +613,9 @@ POST /outfits
 ]
 ```
 
-> 콜라주는 `closetItems[].cutoutUrl` 과 `mcmProduct.cutoutUrl` 을 같이 쓴다. 둘 다 누끼라 배경이 일관된다.
+> `imageUrl` — 후보 조합을 AI가 한 장의 flat-lay 화보로 연출한 이미지. **재생성 이미지라 디테일이 원본과 다를 수 있다**(연출컷 — 원본 확인은 `closetItems`·`mcmProduct` 데이터와 상세 화면이 담당). **생성이 실패한 후보는 `null`** — 이때 프론트는 `closetItems[].cutoutUrl`·`mcmProduct.cutoutUrl` 누끼를 직접 배치(콜라주)해 **폴백 렌더**한다. `category`는 폴백 배치 힌트(상의=좌상, 하의=좌하, 가방·신발·악세서리=우측 보조 크기).
+>
+> ※ 후보 화보 생성은 **팀 시연 평가 후 유지/폐기를 결정하는 실험 기능**이다. 폐기되면 폴백(누끼 콜라주)이 기본 렌더로 승격된다 — 재료 필드는 어느 경우든 유지되므로 프론트 구조는 동일.
 
 | 에러 | HTTP | code | 메시지 |
 |------|------|------|--------|
@@ -623,7 +632,7 @@ POST /outfits
 POST /looks
 ```
 
-> 코디 후보 중 하나를 골라 저장한다. **여기서만** 코디 이미지(B, Nano Banana) 1장 생성. 영속.
+> 코디 후보 중 하나를 골라 저장한다. 영속. **고른 후보의 `imageUrl`을 body에 같이 보내면 그 화보가 룩 이미지로 저장된다** — 재생성 없음, 고른 것과 저장된 것이 동일.
 
 **Request Body**
 ```json
@@ -631,6 +640,7 @@ POST /looks
   "moodId": 1,
   "closetItemIds": [1, 5],
   "mcmProductId": 103,
+  "imageUrl": "https://cdn.mcmmuse.app/outfits/3f2a.jpg",
   "reason": "클래식 블라우스 + 비세토스로 포인트",
   "wornDate": "2026-08-15"
 }
@@ -641,6 +651,7 @@ POST /looks
 | `moodId` | `number` | 예 | 1~6 |
 | `closetItemIds` | `number[]` | 예 | 내 옷장 아이템 |
 | `mcmProductId` | `number` | 예 | 코디에 포함된 MCM |
+| `imageUrl` | `string` | 아니오 | **4-4 후보의 `imageUrl` 그대로** (후보 생성이 실패해 없었으면 생략) |
 | `reason` | `string` | 아니오 | 코디 이유 |
 | `wornDate` | `string` | 아니오 | `yyyy-MM-dd`. **안 주면 서버가 오늘 날짜로 채움** (화면 16에는 날짜 선택 UI가 없음) |
 
@@ -651,25 +662,23 @@ POST /looks
   "moodId": 1, "occasionLabel": "저녁 약속 / DINNER DATE",
   "closetItemIds": [1, 5], "mcmProductId": 103,
   "reason": "클래식 블라우스 + 비세토스로 포인트",
-  "generatedImageUrl": null
+  "generatedImageUrl": "https://cdn.mcmmuse.app/outfits/3f2a.jpg"
 }
 ```
 
-> **이미지 생성은 비동기다.** `POST /looks`는 룩을 저장하고 **즉시 `201`을 반환**하며, 이 시점의 `generatedImageUrl`은 보통 `null`이다. 이미지는 백그라운드에서 생성된다.
->
-> **프론트 처리:** `201`을 받으면 저장 완료 화면을 먼저 띄우고, `generatedImageUrl`이 `null`이면 **`GET /looks/{id}`를 폴링**(2~3초 간격 권장)해서 값이 채워지면 이미지를 교체한다. 생성이 최종 실패해도 `null`로 남으므로 폴링은 적당한 횟수에서 중단하고 플레이스홀더를 유지한다.
+> `generatedImageUrl`은 body의 `imageUrl`이 **저장 즉시 그대로 채워진다** — 별도 비동기 생성·폴링 없음. 후보 화보가 없었으면(생성 실패) `null`로 저장되고, 그 룩 화면은 재료(누끼 콜라주)로 폴백 렌더한다.
 
 ---
 
 ### 4-6. 룩 단건 조회
 
-> `화면 16 코디조합추천 (이미지 폴링)` · `인증 필요` · `MVP`
+> `화면 16 코디조합추천` · `인증 필요` · `MVP`
 
 ```
 GET /looks/{id}
 ```
 
-> 저장된 룩 하나를 조회한다. **이미지 생성 완료 여부 폴링에 사용.**
+> 저장된 룩 하나를 조회한다. (`generatedImageUrl`은 저장 시점에 확정된다 — 폴링 불필요.)
 >
 > 룩이 참조하는 옷장 아이템은 **이후 옷장에서 삭제됐더라도 룩 조회에는 계속 나온다**(과거 코디 기록 보존). 삭제는 옷장 목록에서만 사라지게 한다.
 
@@ -719,8 +728,8 @@ GET /looks?month=2026-08
 | 스타일링 | `POST` | `/recommendations` | 필요 | 200 | 4-a · 5 | MCM 추천(미저장) |
 | 스타일링 | `GET` | `/moods` | 필요 | 200 | 15 | 무드 6개 |
 | 스타일링 | `POST` | `/outfits` | 필요 | 200 | 16 · 6 | 코디 후보 최대 3(미저장) |
-| 스타일링 | `POST` | `/looks` | 필요 | 201 | 16 | 룩 저장(+B 이미지 **비동기** 생성) |
-| 스타일링 | `GET` | `/looks/{id}` | 필요 | 200 | 16 | 룩 단건(이미지 생성 폴링) |
+| 스타일링 | `POST` | `/looks` | 필요 | 201 | 16 | 룩 저장(후보 화보 `imageUrl` 재사용) |
+| 스타일링 | `GET` | `/looks/{id}` | 필요 | 200 | 16 | 룩 단건 |
 | 스타일링 | `GET` | `/looks` | 필요 | 200 | 10 | 룩 목록(`month` 필터) — 후순위 |
 
 ---
@@ -742,7 +751,7 @@ GET /looks?month=2026-08
 | 4-a 스타일DNA | `GET /closet-items` · `POST /style-dna` · `POST /recommendations` | 옷 선택 → 진단 → DNA + PERFECT MATCH 1픽 |
 | 5 MCM제품추천 | (4-a의 `POST /recommendations` 응답 `more` 재사용) | 추가 호출 불필요 |
 | 15 무드선택 | `GET /moods` | |
-| 16 코디조합추천 | `POST /outfits` · `POST /looks` · `GET /looks/{id}` | 3후보 → 택1 저장 → 이미지 폴링 |
+| 16 코디조합추천 | `POST /outfits` · `POST /looks` | 3후보(화보 생성, 20~40초 로딩) → 택1 저장(화보 재사용) |
 | 17 프로필 (profile 탭) | `GET /me` · `POST /auth/logout` | |
 | 10 코디기록(캘린더) | `GET /looks?month=` | **후순위** — 토요일 이후 |
 
