@@ -602,6 +602,7 @@ POST /outfits
   {
     "moodId": 1,
     "occasionLabel": "저녁 약속 / DINNER DATE",
+    "concept": "Soft Classic",
     "imageUrl": "https://cdn.mcmmuse.app/outfits/3f2a.jpg",
     "closetItems": [
       { "id": 1, "cutoutUrl": "https://...", "category": "상의" },
@@ -613,6 +614,8 @@ POST /outfits
 ]
 ```
 
+> `concept` — 후보의 코디 컨셉명(**영어 2~3단어**, AI 작명 — 예: Refined Minimal). 후보 카드 제목으로 사용. AI 실패로 룰베이스 폴백이면 `null` — 미표시.
+>
 > `imageUrl` — 후보 조합을 AI가 한 장의 flat-lay 화보로 연출한 이미지. **재생성 이미지라 디테일이 원본과 다를 수 있다**(연출컷 — 원본 확인은 `closetItems`·`mcmProduct` 데이터와 상세 화면이 담당). **생성이 실패한 후보는 `null`** — 이때 프론트는 `closetItems[].cutoutUrl`·`mcmProduct.cutoutUrl` 누끼를 직접 배치(콜라주)해 **폴백 렌더**한다. `category`는 폴백 배치 힌트(상의=좌상, 하의=좌하, 가방·신발·악세서리=우측 보조 크기).
 >
 > ※ 후보 화보 생성은 **팀 시연 평가 후 유지/폐기를 결정하는 실험 기능**이다. 폐기되면 폴백(누끼 콜라주)이 기본 렌더로 승격된다 — 재료 필드는 어느 경우든 유지되므로 프론트 구조는 동일.
@@ -641,6 +644,7 @@ POST /looks
   "closetItemIds": [1, 5],
   "mcmProductId": 103,
   "imageUrl": "https://cdn.mcmmuse.app/outfits/3f2a.jpg",
+  "concept": "Soft Classic",
   "reason": "클래식 블라우스 + 비세토스로 포인트",
   "wornDate": "2026-08-15"
 }
@@ -652,6 +656,7 @@ POST /looks
 | `closetItemIds` | `number[]` | 예 | 내 옷장 아이템 |
 | `mcmProductId` | `number` | 예 | 코디에 포함된 MCM |
 | `imageUrl` | `string` | 아니오 | **4-4 후보의 `imageUrl` 그대로** (후보 생성이 실패해 없었으면 생략) |
+| `concept` | `string` | 아니오 | **4-4 후보의 `concept` 그대로** (60자 이하) — 기록 화면 제목용으로 룩에 영구 저장 |
 | `reason` | `string` | 아니오 | 코디 이유 |
 | `wornDate` | `string` | 아니오 | `yyyy-MM-dd`. **안 주면 서버가 오늘 날짜로 채움** (화면 16에는 날짜 선택 UI가 없음) |
 
@@ -660,6 +665,7 @@ POST /looks
 {
   "id": 7, "userId": 1, "wornDate": "2026-08-15",
   "moodId": 1, "occasionLabel": "저녁 약속 / DINNER DATE",
+  "concept": "Soft Classic",
   "closetItemIds": [1, 5], "mcmProductId": 103,
   "reason": "클래식 블라우스 + 비세토스로 포인트",
   "generatedImageUrl": "https://cdn.mcmmuse.app/outfits/3f2a.jpg"
