@@ -269,15 +269,21 @@ GET /mcm-products?query=&category=
 [
   { "id": 103, "name": "Tracy 숄더백", "category": "가방", "color": "카멜", "material": "가죽",
     "price": 890000, "imageUrl": "https://...", "cutoutUrl": "https://...",
-    "productUrl": "https://..." }
+    "productUrl": "https://...",
+    "description": "우아한 로고 락 클로저가 돋보이는 Tracy(트레이시) 숄더백은 ...",
+    "size": "S",
+    "imageUrls": ["https://...", "https://...", "https://..."] }
 ]
 ```
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| `imageUrl` | `string` | 상품 원본 이미지 절대 URL |
+| `imageUrl` | `string` | 상품 대표 이미지 절대 URL (목록 카드용 — `imageUrls`의 첫 장과 동일) |
 | `cutoutUrl` | `string?` | **누끼 이미지** 절대 URL. 화면 16 콜라주 렌더에 사용. 적재 시 생성하며 실패 시 `null` |
 | `productUrl` | `string` | MCM 공식몰 상품 페이지. 화면 6 "구매하기"가 이 URL로 이동 |
+| `description` | `string?` | 상세 설명 문단 — 화면 7-a 본문 |
+| `size` | `string?` | 사이즈 표기 — **`\|` 구분 목록일 수 있음** (예: "미니", "S", 신발은 "35 IT / 여성 \| 36 IT / 여성 \| ...") |
+| `imageUrls` | `string[]` | **상세 캐러셀 이미지 전체**(상품당 5~8장) — 화면 7-a 상단 캐러셀. 빈 배열 가능 |
 
 **home 카테고리 탭 ↔ `Category` 매핑** (프론트 클라이언트 필터)
 
@@ -645,6 +651,7 @@ POST /looks
   "mcmProductId": 103,
   "imageUrl": "https://cdn.mcmmuse.app/outfits/3f2a.jpg",
   "concept": "Soft Classic",
+  "note": "오늘 옷 센스 있다는 말 들어서 기분 좋았던 날, 꾸안꾸 룩",
   "reason": "클래식 블라우스 + 비세토스로 포인트",
   "wornDate": "2026-08-15"
 }
@@ -657,8 +664,9 @@ POST /looks
 | `mcmProductId` | `number` | 예 | 코디에 포함된 MCM |
 | `imageUrl` | `string` | 아니오 | **4-4 후보의 `imageUrl` 그대로** (후보 생성이 실패해 없었으면 생략) |
 | `concept` | `string` | 아니오 | **4-4 후보의 `concept` 그대로** (60자 이하) — 기록 화면 제목용으로 룩에 영구 저장 |
-| `reason` | `string` | 아니오 | 코디 이유 |
-| `wornDate` | `string` | 아니오 | `yyyy-MM-dd`. **안 주면 서버가 오늘 날짜로 채움** (화면 16에는 날짜 선택 UI가 없음) |
+| `note` | `string` | 아니오 | **사용자 소감** ("이 코디 어땠어요?" — 화면 11) 1000자 이하. AI의 `reason`과 별개 |
+| `reason` | `string` | 아니오 | 코디 이유 (AI 추천 이유) |
+| `wornDate` | `string` | 아니오 | `yyyy-MM-dd`. **안 주면 오늘.** 화면 9(무드 선택)의 날짜 선택 값을 그대로 전달 — 과거·미래 날짜 기록 가능, **같은 날짜에 여러 룩 허용** |
 
 **Response `201 Created`** — `Look`
 ```json
@@ -667,6 +675,7 @@ POST /looks
   "moodId": 1, "occasionLabel": "저녁 약속 / DINNER DATE",
   "concept": "Soft Classic",
   "closetItemIds": [1, 5], "mcmProductId": 103,
+  "note": "오늘 옷 센스 있다는 말 들어서 기분 좋았던 날, 꾸안꾸 룩",
   "reason": "클래식 블라우스 + 비세토스로 포인트",
   "generatedImageUrl": "https://cdn.mcmmuse.app/outfits/3f2a.jpg"
 }
@@ -712,6 +721,8 @@ GET /looks?month=2026-08
 | `month` | `string` | 아니오 | `yyyy-MM` 필터. 안 주면 전체 |
 
 **Response `200 OK`** — `Look[]` (4-5 객체의 배열)
+
+> **정렬: `wornDate DESC`, 같은 날짜 안에서는 최근 저장순.** 하루에 룩 여러 개 기록 가능 — 캘린더(화면 10-b)에서 날짜를 탭하면 그날의 룩 목록을 이 응답에서 필터해 보여주면 된다.
 
 ---
 
