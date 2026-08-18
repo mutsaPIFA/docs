@@ -230,11 +230,23 @@ POST /auth/logout
 GET /me
 ```
 
-> 로그인한 사용자 정보. profile 탭에서 닉네임 표시·로그아웃 진입에 사용.
+> 로그인한 사용자 정보. profile 탭에서 닉네임·아바타·스타일 DNA 카드 표시에 사용.
 
 **Response `200 OK`**
 ```json
-{ "userId": 1, "email": "muse@example.com", "nickname": "뮤즈" }
+{
+  "userId": 1,
+  "email": "muse@example.com",
+  "nickname": "뮤즈",
+  "avatarUrl": "https://cdn.mcmmuse.app/avatars/ab12.png",
+  "styleDna": {
+    "summary": "네이비·클래식 중심의 미니멀 무드",
+    "dominantColors": ["네이비", "그레이"],
+    "dominantMoods": ["클래식", "미니멀"],
+    "keywords": ["차분한", "포멀", "베이직"],
+    "updatedAt": "2026-08-18T11:20:00Z"
+  }
+}
 ```
 
 | 필드 | 타입 | 설명 |
@@ -242,6 +254,10 @@ GET /me
 | `userId` | `number` | 사용자 id |
 | `email` | `string` | 가입 이메일 |
 | `nickname` | `string` | 표시 이름 |
+| `avatarUrl` | `string?` | 프로필 이미지 절대 URL. 미설정 시 `null` — 프론트는 기본 마스코트 표시 |
+| `styleDna` | `object?` | **가장 최근 스타일 DNA 분석 결과** (4-1 응답 + `updatedAt`). 분석 이력이 없으면 `null` — 프로필 카드 미표시 |
+
+> `styleDna`는 `POST /style-dna`(4-1)가 성공할 때마다 서버가 자동으로 최신 값으로 갱신한다. 별도 저장 호출 없음.
 
 ---
 
@@ -397,6 +413,7 @@ POST /closet-items
 ```json
 {
   "id": 12, "userId": 1,
+  "name": null,
   "category": "상의", "color": "네이비", "material": "면", "mood": "클래식",
   "imageUrl": "https://cdn.mcmmuse.app/closet/12.jpg",
   "cutoutUrl": "https://cdn.mcmmuse.app/closet/12-cutout.png",
@@ -404,6 +421,8 @@ POST /closet-items
   "createdAt": "2026-08-13T10:00:00Z"
 }
 ```
+
+> `name`(`string?`) — **사용자 지정 명칭**(3-6에서 수정). `null`이면 프론트가 태그 조합("네이비 면 상의")으로 표시명을 만든다.
 
 ---
 
@@ -473,6 +492,39 @@ DELETE /closet-items/{id}
 
 ---
 
+### 3-6. 옷장 아이템 수정 (명칭·태그)
+
+> `화면 9 나의옷장(아이템 정보)` · `인증 필요` · `MVP`
+
+```
+PATCH /closet-items/{id}
+```
+
+> 보낸 필드만 수정한다(부분 수정). 사진 교체는 지원하지 않는다 — 재스캔으로.
+
+**Request Body** (모든 필드 선택)
+```json
+{ "name": "출근용 셔츠", "category": "상의", "color": "네이비", "material": "면", "mood": "클래식" }
+```
+
+| 필드 | 타입 | 필수 | 제약 |
+|------|------|------|------|
+| `name` | `string?` | 아니오 | 최대 30자. 빈 문자열 `""` 전송 시 명칭 제거(태그 조합 표시로 복귀), 필드 생략 시 유지 |
+| `category` | `Category` | 아니오 | 어휘 내 값 |
+| `color` | `Color` | 아니오 | 어휘 내 값 |
+| `material` | `Material` | 아니오 | 어휘 내 값 |
+| `mood` | `ItemMood` | 아니오 | 어휘 내 값 |
+
+**Response `200 OK`** — `ClosetItem` (3-2 응답과 동일 구조)
+
+| 에러 | HTTP | 메시지 |
+|------|------|--------|
+| 검증 실패 | `400` | 명칭은 30자 이하여야 합니다 |
+| 내 아이템 아님 | `403` | 권한이 없습니다 |
+| 없음 | `404` | 아이템을 찾을 수 없습니다 |
+
+---
+
 # 4. 스타일링
 
 > 스타일 DNA·MCM 추천(4-1, 4-2)과 무드·코디·룩 큐레이터(4-3 ~ 4-7)를 한 그룹으로 묶는다. 둘 다 "옷장을 읽어 MCM을 제안한다"는 같은 일을 한다.
@@ -485,7 +537,7 @@ DELETE /closet-items/{id}
 POST /style-dna
 ```
 
-> 선택한 옷장 아이템들로 취향 요약을 만든다. **미저장(매번 생성).**
+> 선택한 옷장 아이템들로 취향 요약을 만든다. 응답은 매번 새로 생성하되, **성공 시 최신 결과가 사용자 프로필에 저장된다**(1-5 `styleDna` — 프로필 카드용).
 
 **Request Body**
 ```json
@@ -739,7 +791,7 @@ GET /looks?month=2026-08
 DELETE /looks/{id}
 ```
 
-> 저장한 룩을 취소한다(완전 삭제). 취소 후 같은 후보를 다시 기록할 수 있다. 후보 카드의 "기록됨" 상태 해제용.
+> 저장한 룩을 취소한다(완전 삭제). 취소 후 같은 후보를 다시 기록할 수 있다. 후보 카드의 "기록됨" 상태 해제와 **기록 상세의 삭제 버튼** 양쪽에서 쓴다.
 
 **Response `204 No Content`**
 
@@ -747,6 +799,133 @@ DELETE /looks/{id}
 |------|------|--------|
 | 내 룩 아님 | `403` | 권한이 없습니다 |
 | 없음 | `404` | 룩을 찾을 수 없습니다 |
+
+---
+
+### 4-9. 룩 수정 (소감·날짜)
+
+> `화면 10 코디기록 · 16 코디조합추천` · `인증 필요` · `MVP`
+
+```
+PATCH /looks/{id}
+```
+
+> 보낸 필드만 수정한다(부분 수정). `concept`·`reason`·이미지·아이템 구성은 수정 불가(코디 자체를 바꾸려면 삭제 후 재기록).
+
+**Request Body** (모든 필드 선택)
+```json
+{ "note": "생각보다 반응이 좋았던 날", "wornDate": "2026-08-20" }
+```
+
+| 필드 | 타입 | 필수 | 제약 |
+|------|------|------|------|
+| `note` | `string?` | 아니오 | 최대 1,000자 (4-5와 동일). 빈 문자열 `""` 전송 시 소감 제거, 필드 생략 시 유지 |
+| `wornDate` | `string` | 아니오 | `yyyy-MM-dd` — 기록 날짜 이동 |
+
+**Response `200 OK`** — `Look` (4-5 응답과 동일 구조)
+
+| 에러 | HTTP | 메시지 |
+|------|------|--------|
+| 검증 실패 | `400` | 소감은 1,000자 이하여야 합니다 |
+| 내 룩 아님 | `403` | 권한이 없습니다 |
+| 없음 | `404` | 룩을 찾을 수 없습니다 |
+
+---
+
+# 5. 프로필·찜
+
+> 화면 17(profile 탭)과 home 하트를 실기능으로 만드는 그룹. 팀 확정 범위: 스타일 DNA 프로필 저장(1-5·4-1에 반영) + 닉네임 수정 + 프로필 이미지 + 찜.
+
+### 5-1. 닉네임 수정
+
+> `화면 17 프로필` · `인증 필요` · `MVP`
+
+```
+PATCH /me
+```
+
+**Request Body**
+```json
+{ "nickname": "뮤즈" }
+```
+
+| 필드 | 타입 | 필수 | 제약 |
+|------|------|------|------|
+| `nickname` | `string` | 예 | 1~20자, 공백만 불가 |
+
+**Response `200 OK`** — 1-5 응답과 동일 구조
+
+| 에러 | HTTP | 메시지 |
+|------|------|--------|
+| 검증 실패 | `400` | 닉네임은 1~20자여야 합니다 |
+
+---
+
+### 5-2. 프로필 이미지 업로드
+
+> `화면 17 프로필` · `인증 필요` · `MVP`
+
+```
+POST /me/avatar
+Content-Type: multipart/form-data
+```
+
+| 파트 | 타입 | 필수 | 제약 |
+|------|------|------|------|
+| `image` | `file` | 예 | jpg/png/webp, 최대 15MB (3-1과 동일) |
+
+**Response `200 OK`**
+```json
+{ "avatarUrl": "https://cdn.mcmmuse.app/avatars/ab12.png" }
+```
+
+> 업로드 즉시 교체(이전 이미지는 참조만 끊는다). 이후 `GET /me`의 `avatarUrl`에 반영.
+
+| 에러 | HTTP | 메시지 |
+|------|------|--------|
+| 형식/용량 | `400` | 지원하지 않는 이미지입니다 |
+
+---
+
+### 5-3. 찜 목록
+
+> `화면 home 상품보기 · 17 프로필` · `인증 필요` · `MVP`
+
+```
+GET /wishlist
+```
+
+**Response `200 OK`** — `McmProduct[]` (2-1 객체의 배열, **최근 찜 순**)
+
+> 제품 상세(6)의 하트 상태는 프론트가 이 응답의 id 집합으로 매칭한다(2-1 응답은 무변경 — 비파괴). 찜 진입점은 제품 상세·찜 목록 화면 — 샵 카드에는 하트를 두지 않는다(팀 확정).
+
+---
+
+### 5-4. 찜 추가
+
+> `화면 home 상품보기 · 6 제품상세` · `인증 필요` · `MVP`
+
+```
+POST /wishlist/{mcmProductId}
+```
+
+**Response `201 Created`** (본문 없음) — 이미 찜한 상태면 `200 OK` (멱등)
+
+| 에러 | HTTP | 메시지 |
+|------|------|--------|
+| 제품 없음 | `404` | 제품을 찾을 수 없습니다 |
+
+---
+
+### 5-5. 찜 해제
+
+> `화면 home 상품보기 · 6 제품상세 · 17 프로필` · `인증 필요` · `MVP`
+
+```
+DELETE /wishlist/{mcmProductId}
+```
+
+**Response `204 No Content`** — 찜하지 않은 상태여도 `204` (멱등)
 
 ---
 
@@ -765,6 +944,7 @@ DELETE /looks/{id}
 | 옷장 | `POST` | `/closet-items` | 필요 | 201 | 3 · 6 | 옷장 등록(스캔결과 or 카탈로그 MCM) |
 | 옷장 | `GET` | `/closet-items` | 필요 | 200 | 9 · 4-a | 옷장 목록(`source` 필터) |
 | 옷장 | `DELETE` | `/closet-items/{id}` | 필요 | **204** | 9 | 옷장 아이템 삭제 |
+| 옷장 | `PATCH` | `/closet-items/{id}` | 필요 | 200 | 9 | 아이템 수정(명칭·태그) |
 | 스타일링 | `POST` | `/style-dna` | 필요 | 200 | 4-a | 스타일 DNA(미저장) |
 | 스타일링 | `POST` | `/recommendations` | 필요 | 200 | 4-a · 5 | MCM 추천(미저장) |
 | 스타일링 | `GET` | `/moods` | 필요 | 200 | 15 | 무드 6개 |
@@ -772,7 +952,13 @@ DELETE /looks/{id}
 | 스타일링 | `POST` | `/looks` | 필요 | 201 | 16 | 룩 저장(후보 화보 `imageUrl` 재사용) |
 | 스타일링 | `GET` | `/looks/{id}` | 필요 | 200 | 16 | 룩 단건 |
 | 스타일링 | `GET` | `/looks` | 필요 | 200 | 10 | 룩 목록(`month` 필터) — 후순위 |
-| 스타일링 | `DELETE` | `/looks/{id}` | 필요 | **204** | 16 | 룩 삭제(기록 취소) |
+| 스타일링 | `DELETE` | `/looks/{id}` | 필요 | **204** | 16 · 10 | 룩 삭제(기록 취소) |
+| 스타일링 | `PATCH` | `/looks/{id}` | 필요 | 200 | 10 | 룩 수정(소감·날짜) |
+| 프로필 | `PATCH` | `/me` | 필요 | 200 | 17 | 닉네임 수정 |
+| 프로필 | `POST` | `/me/avatar` | 필요 | 200 | 17 | 프로필 이미지 업로드 |
+| 찜 | `GET` | `/wishlist` | 필요 | 200 | home · 17 | 찜 목록(최근 찜 순) |
+| 찜 | `POST` | `/wishlist/{mcmProductId}` | 필요 | 201 | home · 6 | 찜 추가(멱등) |
+| 찜 | `DELETE` | `/wishlist/{mcmProductId}` | 필요 | **204** | home · 6 · 17 | 찜 해제(멱등) |
 
 ---
 
@@ -785,7 +971,7 @@ DELETE /looks/{id}
 | 0 스플래시 | — | 토큰 유효성만 확인(`GET /me` 또는 `POST /auth/refresh`) |
 | 1 온보딩 | — | 정적 화면 |
 | 4-b 로그인/회원가입 | `POST /auth/login` · `POST /auth/register` | |
-| **home 상품보기** | `GET /mcm-products` | 진입 시 1회, 검색·탭은 클라 필터 |
+| **home 상품보기** | `GET /mcm-products` · `GET /wishlist` · `POST·DELETE /wishlist/{id}` | 하트 상태는 찜 목록 id 집합으로 매칭 |
 | 6 제품상세 | `GET /mcm-products/{id}` · `POST /closet-items` · `POST /outfits` | 담기 / 이 제품으로 큐레이팅 / **구매하기는 `productUrl` 외부 이동** |
 | 9 나의옷장 (closet 탭) | `GET /closet-items` · `DELETE /closet-items/{id}` | ＋버튼 → 화면 2 또는 갤러리 |
 | 2 옷장스캔 | `POST /scan` | 카메라 단일 촬영 |
@@ -794,7 +980,7 @@ DELETE /looks/{id}
 | 5 MCM제품추천 | (4-a의 `POST /recommendations` 응답 `more` 재사용) | 추가 호출 불필요 |
 | 15 무드선택 | `GET /moods` | |
 | 16 코디조합추천 | `POST /outfits` · `POST /looks` | 3후보(화보 생성, 20~40초 로딩) → 택1 저장(화보 재사용) |
-| 17 프로필 (profile 탭) | `GET /me` · `POST /auth/logout` | |
+| 17 프로필 (profile 탭) | `GET /me` · `PATCH /me` · `POST /me/avatar` · `GET /wishlist` · `POST /auth/logout` | `styleDna` 카드는 `GET /me` 응답으로 |
 | 10 코디기록(캘린더) | `GET /looks?month=` | **후순위** — 토요일 이후 |
 
 ---
