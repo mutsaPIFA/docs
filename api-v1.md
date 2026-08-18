@@ -611,8 +611,8 @@ POST /outfits
     "concept": "Soft Classic",
     "imageUrl": "https://cdn.mcmmuse.app/outfits/3f2a.jpg",
     "closetItems": [
-      { "id": 1, "cutoutUrl": "https://...", "category": "상의" },
-      { "id": 5, "cutoutUrl": "https://...", "category": "하의" }
+      { "id": 1, "cutoutUrl": "https://...", "category": "상의", "color": "화이트", "material": "면" },
+      { "id": 5, "cutoutUrl": "https://...", "category": "하의", "color": "블랙", "material": "울" }
     ],
     "mcmProduct": { "id": 103, "imageUrl": "https://...", "cutoutUrl": "https://...", "name": "Tracy 숄더백" },
     "reason": "클래식 블라우스 + 비세토스로 포인트"
@@ -627,6 +627,8 @@ POST /outfits
 > **생성에 실패한 후보는 응답에서 제외된다** — 반환된 후보에는 `imageUrl`이 항상 있고, 그만큼 후보 수가 줄 수 있다(LOOK 번호는 배열 순서 그대로 매기면 됨). **전 후보 생성 실패**(사실상 AI 서비스 장애)면 아래 `503` — 프론트는 "다시 시도" 화면을 보여준다.
 >
 > ※ 후보 화보 생성은 **팀 시연 평가 후 유지/폐기를 결정하는 실험 기능**이다. 폐기되면 재료(`closetItems[].cutoutUrl`·`mcmProduct.cutoutUrl` 누끼) 콜라주 렌더로 전환한다 — 재료 필드를 유지하는 이유. `category`는 그 경우의 배치 힌트.
+>
+> `closetItems[].color`·`material` — 표시용 태그(§3-1과 동일 어휘). 프론트가 "화이트 면 상의"처럼 아이템 표시명을 조합하는 데 쓴다.
 
 | 에러 | HTTP | code | 메시지 |
 |------|------|------|--------|
@@ -665,7 +667,7 @@ POST /looks
 | `moodId` | `number` | 예 | 1~6 |
 | `closetItemIds` | `number[]` | 예 | 내 옷장 아이템 |
 | `mcmProductId` | `number` | 예 | 코디에 포함된 MCM |
-| `imageUrl` | `string` | 아니오 | **4-4 후보의 `imageUrl` 그대로** (후보 생성이 실패해 없었으면 생략) |
+| `imageUrl` | `string` | 아니오 | **4-4 후보의 `imageUrl` 그대로** (§4-4 정책상 반환된 후보에는 항상 존재) |
 | `concept` | `string` | 아니오 | **4-4 후보의 `concept` 그대로** (60자 이하) — 기록 화면 제목용으로 룩에 영구 저장 |
 | `note` | `string` | 아니오 | **사용자 소감** ("이 코디 어땠어요?" — 화면 11) 1000자 이하. AI의 `reason`과 별개 |
 | `reason` | `string` | 아니오 | 코디 이유 (AI 추천 이유) |
@@ -684,7 +686,7 @@ POST /looks
 }
 ```
 
-> `generatedImageUrl`은 body의 `imageUrl`이 **저장 즉시 그대로 채워진다** — 별도 비동기 생성·폴링 없음. 후보 화보가 없었으면(생성 실패) `null`로 저장되고, 그 룩 화면은 재료(누끼 콜라주)로 폴백 렌더한다.
+> `generatedImageUrl`은 body의 `imageUrl`이 **저장 즉시 그대로 채워진다** — 별도 비동기 생성·폴링 없음. §4-4에서 생성 실패 후보는 응답에서 제외되므로, 후보에서 골라 저장한 룩에는 화보가 항상 있다.
 
 ---
 
